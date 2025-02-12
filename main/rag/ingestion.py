@@ -2,7 +2,7 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 import pymupdf
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from vector_store import upsert
+from main.database.vector_store import upsert
 
 
 def ingest_pdf(pdf_file: UploadedFile) -> None:
@@ -12,12 +12,13 @@ def ingest_pdf(pdf_file: UploadedFile) -> None:
 
 
 def _extract_text(pdf_file: UploadedFile) -> str:
+    # TODO: Try Gemini 2.0 Flash for text extraction.
     extracted_text = ""
     with pymupdf.open(stream=pdf_file.read(), filetype='pdf') as pdf:
         for page in pdf:
             page_text = page.get_text("text") # type: ignore
-            extracted_text += page_text
-    return extracted_text
+            extracted_text += page_text + "\n"
+    return extracted_text.replace("\n", " ")
 
 
 def _chunk_text(text: str) -> list[str]:

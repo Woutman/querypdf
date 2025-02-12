@@ -16,7 +16,7 @@ def query_gpt(
         temperature: float = openai_settings.temperature, 
         top_p: float = openai_settings.top_p
     ) -> str:
-    """Sends a query to GPT and returns the output as a string.""" 
+    """Sends a query to GPT and returns the response as a string.""" 
 
     if return_json and not json_schema:
         raise ValueError("GPT should return JSON, but no JSON schema was provided.")
@@ -32,7 +32,7 @@ def query_gpt(
     print(response.usage)
     output = response.choices[0].message.content
     if not output:
-        raise ValueError("GPT call returned no output.")
+        raise ValueError("GPT call returned no response.")
 
     return output
 

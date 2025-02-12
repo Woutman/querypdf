@@ -1,7 +1,7 @@
 services:
   web:
       build: .
-      command: streamlit run ./main/app.py
+      command: streamlit run ./main/app.py --server.fileWatcherType=none
       volumes:
         - .:/app
       ports:
