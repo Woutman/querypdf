@@ -2,19 +2,19 @@ from typing import Optional, Any
 
 import openai
 
-from .settings import get_settings
+from settings import get_settings
 
-settings = get_settings().openai_settings
-client = openai.OpenAI(api_key=settings.api_key)
+openai_settings = get_settings().openai_settings
+client = openai.OpenAI(api_key=openai_settings.api_key)
 
 
 def query_gpt(
         messages: list[dict[str, Any]], 
-        model: str = settings.default_model, 
+        model: str = openai_settings.default_model, 
         return_json: bool = False, 
         json_schema: Optional[dict[str, Any]] = None, 
-        temperature: float = settings.temperature, 
-        top_p: float = settings.top_p
+        temperature: float = openai_settings.temperature, 
+        top_p: float = openai_settings.top_p
     ) -> str:
     """Sends a query to GPT and returns the output as a string.""" 
 
@@ -39,4 +39,4 @@ def query_gpt(
 
 def get_embeddings(text: str) -> list[float]:
     """Returns the vector embeddings of the input string."""
-    return client.embeddings.create(input=[text], model=settings.embeddings_model).data[0].embedding
+    return client.embeddings.create(input=[text], model=openai_settings.embeddings_model).data[0].embedding

@@ -6,15 +6,15 @@ from psycopg2.errors import DuplicateTable
 from timescale_vector import client
 from timescale_vector.client import uuid_from_time
 
-from .settings import get_settings
-from .openai import get_embeddings
+from settings import get_settings
+from openai_interface import get_embeddings
 
-settings = get_settings().vector_store_settings
+vec_settings = get_settings().vector_store_settings
 
 vec_store = client.Sync(
-    service_url=settings.service_url, 
-    table_name=settings.table_name, 
-    num_dimensions=settings.embedding_dimenstions
+    service_url=vec_settings.service_url, 
+    table_name=vec_settings.table_name, 
+    num_dimensions=vec_settings.embedding_dimenstions
 )
 
 vec_store.create_tables()
@@ -24,13 +24,13 @@ except DuplicateTable:
     pass
 
 # Create keyword search index
-index_name = f"idx_{settings.table_name}_contents_gin"
+index_name = f"idx_{vec_settings.table_name}_contents_gin"
 create_index_sql = f"""
 CREATE INDEX IF NOT EXISTS {index_name}
-ON {settings.table_name} USING gin(to_tsvector('english', contents));
+ON {vec_settings.table_name} USING gin(to_tsvector('english', contents));
 """
 try:
-    with psycopg2.connect(settings.service_url) as conn:
+    with psycopg2.connect(vec_settings.service_url) as conn:
         with conn.cursor() as cur:
             cur.execute(create_index_sql)
             conn.commit()

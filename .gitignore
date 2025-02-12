@@ -1,4 +1,8 @@
 test/
+.vscode/
+Dockerfile.dev
+docker-compose.override.yml
+entrypoint.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

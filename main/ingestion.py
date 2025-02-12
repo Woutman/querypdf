@@ -2,7 +2,7 @@ from streamlit.runtime.uploaded_file_manager import UploadedFile
 import pymupdf
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from .vector_store import upsert
+from vector_store import upsert
 
 
 def ingest_pdf(pdf_file: UploadedFile) -> None:

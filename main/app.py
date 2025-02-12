@@ -1,6 +1,6 @@
 import streamlit as st
 
-from .ingestion import ingest_pdf
+from ingestion import ingest_pdf
 
 
 st.title("QueryPDF")
