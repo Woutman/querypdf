@@ -1,5 +1,5 @@
-from streamlit.runtime.uploaded_file_manager import UploadedFile
 import pymupdf
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from main.database.vector_store import upsert

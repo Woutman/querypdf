@@ -1,7 +1,7 @@
 services:
   web:
       build: .
-      command: streamlit run ./main/app.py --server.fileWatcherType=none
+      command: streamlit run ./main/app.py --server.fileWatcherType=none # Disable file watcher to silence Streamlit complaints about PyTorch
       volumes:
         - .:/app
       ports:
