@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 8501
 
-CMD ["streamlit", "run", "./main/app.py", "--server.fileWatcherType=none"]
+CMD ["streamlit", "run", "./main/app.py", " --server.runOnSave true"]

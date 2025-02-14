@@ -1,28 +1,47 @@
+import logging
+
 import streamlit as st
 
 from main.rag.ingestion import ingest_pdf
 from main.rag.rag import generate_answer
-from main.llm.instructions import INSTRUCTIONS_CHATBOT
-
 
 st.title("QueryPDF")
 
+# Upload PDF
 pdf_file = st.file_uploader("Upload a PDF", type="pdf")
-if pdf_file is not None:
-    ingest_pdf(pdf_file) # TODO: This happens everytime something else happens.
+if pdf_file is not None and not st.session_state.get("pdf_uploaded", False):
+    with st.spinner("Processing PDF..."):
+        ingest_pdf(pdf_file)
+        st.session_state.pdf_uploaded = True
+        st.success("Document indexed! You can now ask questions about the PDF.")
 
-    st.success("Document indexed! You can now ask questions about the PDF.")
 
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [{"role": "system", "content": INSTRUCTIONS_CHATBOT}]
+# Chat interface
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
+if "user_input" not in st.session_state:
+    st.session_state.user_input = ""
+
+
+def _handle_query() -> None:
+    """Callback function to handle sent queries on button press."""
+    query = st.session_state.user_input.strip()
+    if not query:
+        return
+    
+    with st.spinner("Generating answer..."):
+        st.session_state.chat_history.append({"role": "user", "content": query})
+        answer = generate_answer(message_history=st.session_state.chat_history)
+        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+
+    st.session_state.user_input = ""
+    st.rerun()
+
+
+with st.container(border=True):
     for message in st.session_state.chat_history[1:]:
         st.markdown(f"**{message['role']}:** {message['content']}")
 
-    user_question = st.text_input("Ask a question about the PDF")
-    if st.button("Send") and user_question:
-        # TODO: This should happen immediatel when pressing button. Use callback?
-        st.session_state.chat_history.append({"role": "user", "content": user_question})
-
-        answer = generate_answer(message_history=st.session_state.chat_history)
-        st.session_state.chat_history.append({"role": "assistant", "content": answer})
+    st.text_input("Ask a question about the PDF", key="user_input", on_change=_handle_query)    
+    st.button("Send", on_click=_handle_query)

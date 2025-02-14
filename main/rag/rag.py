@@ -15,7 +15,7 @@ rag_settings = get_settings().rag_settings
 def generate_answer(message_history: list[dict[str, str]]) -> str:
     query = _rephrase_query(message_history=message_history)
     results = _retrieve_documents(query=query, top_n=rag_settings.top_n_retrieval, max_distance=1.0)
-    results = _rerank_documents(query=query, documents=results, top_n=rag_settings.top_n_reranking, min_score=0.0)
+    # results = _rerank_documents(query=query, documents=results, top_n=rag_settings.top_n_reranking, min_score=0.0)
     response = _summarize_documents(query=query, documents=results)
     
     return response
@@ -44,7 +44,7 @@ def _retrieve_documents(query: str, top_n: int, max_distance: float) -> list[lis
 
 
 def _rerank_documents(query: str, documents: list[list[Any]], top_n: int, min_score: float) -> list[list[Any]]:
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # TODO: CUDA isn't detected.
 
     model_name_or_path = "Alibaba-NLP/gte-multilingual-reranker-base"
 
