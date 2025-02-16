@@ -7,7 +7,7 @@ from timescale_vector import client
 from timescale_vector.client import uuid_from_time
 
 from settings import get_settings
-from main.llm.openai_interface import get_embeddings
+from llm.openai_interface import get_embeddings
 
 vec_settings = get_settings().vector_store_settings
 

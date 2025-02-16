@@ -4,10 +4,10 @@ from typing import Any
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-from main.settings import get_settings
-from main.llm.openai_interface import query_gpt, get_embeddings
-from main.database.vector_store import vec_store
-from main.rag.instructions import INSTRUCTIONS_REPHRASING, INSTRUCTIONS_SUMMARIZATION
+from settings import get_settings
+from llm.openai_interface import query_gpt, get_embeddings
+from database.vector_store import vec_store
+from rag.instructions import INSTRUCTIONS_REPHRASING, INSTRUCTIONS_SUMMARIZATION
 
 rag_settings = get_settings().rag_settings
 

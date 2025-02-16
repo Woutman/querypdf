@@ -18,8 +18,5 @@ services:
       ports:
         - "5432:5432"
       volumes:
-        - timescaledb_data:/var/lib/postgresql/data
+        - ./data:/home/postgres/pgdata
       restart: unless-stopped
-
-volumes:
-  timescaledb_data:

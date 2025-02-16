@@ -2,8 +2,8 @@ import logging
 
 import streamlit as st
 
-from main.rag.ingestion import ingest_pdf
-from main.rag.rag import generate_answer
+from rag.ingestion import ingest_pdf
+from rag.rag import generate_answer
 
 st.title("QueryPDF")
 
