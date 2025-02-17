@@ -36,12 +36,11 @@ def _handle_query() -> None:
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
 
     st.session_state.user_input = ""
-    st.rerun()
 
 
 with st.container(border=True):
-    for message in st.session_state.chat_history[1:]:
-        st.markdown(f"**{message['role']}:** {message['content']}")
+    for message in st.session_state.chat_history:
+        st.markdown(f"**{message['role'].upper()}:** {message['content']}")
 
     st.text_input("Ask a question about the PDF", key="user_input", on_change=_handle_query)    
     st.button("Send", on_click=_handle_query)
