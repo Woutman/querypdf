@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 *.log
 node_modules/
-.env
 test/
+data/
+example.env

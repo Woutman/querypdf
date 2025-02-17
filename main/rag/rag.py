@@ -13,9 +13,10 @@ rag_settings = get_settings().rag_settings
 
 
 def generate_answer(message_history: list[dict[str, str]]) -> str:
+    # TODO: Add sources to final answer
     query = _rephrase_query(message_history=message_history)
-    results = _retrieve_documents(query=query, top_n=rag_settings.top_n_retrieval, max_distance=1.0)
-    results = _rerank_documents(query=query, documents=results, top_n=rag_settings.top_n_reranking, min_score=0.0)
+    results = _retrieve_documents(query=query, top_n=rag_settings.top_n_retrieval, max_distance=rag_settings.max_distance_retrieval)
+    results = _rerank_documents(query=query, documents=results, top_n=rag_settings.top_n_reranking, min_score=rag_settings.min_score_reranking)
     response = _summarize_documents(query=query, documents=results)
     
     return response
@@ -61,13 +62,13 @@ def _rerank_documents(query: str, documents: list[list[Any]], top_n: int, min_sc
 
     pairs = [[query, doc[2]] for doc in documents]
     with torch.no_grad():
-        inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors='pt', max_length=512)
+        inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors='pt', max_length=8192)
         inputs = {key: value.to(device) for key, value in inputs.items()}
         scores = model(**inputs, return_dict=True).logits.view(-1, ).float()
 
     ranked_documents = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True) # Reverse order improves summarization step slightly. For more info, see: https://arxiv.org/pdf/2407.01219
     
-    return [doc for doc, scores in ranked_documents[:top_n]]
+    return [doc for doc, score in ranked_documents[:top_n] if score >= min_score]
 
 
 def _summarize_documents(query: str, documents: list[list[Any]]) -> str:

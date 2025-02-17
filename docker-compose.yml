@@ -3,7 +3,7 @@ services:
     build: .
     command: streamlit run ./main/app.py --server.fileWatcherType=none # Disable file watcher to silence Streamlit complaints about PyTorch
     volumes:
-      - .:/app
+      - ./main:/app/main
     ports:
       - "8501:8501"
     deploy:

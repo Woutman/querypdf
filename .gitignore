@@ -1,5 +1,6 @@
 test/
 data/
+figures/
 .vscode/
 Dockerfile.dev
 docker-compose.override.yml

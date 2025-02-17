@@ -39,7 +39,9 @@ class VectorStoreSettings(BaseModel):
 class RAGSettings(BaseModel):
     """Settings for RAG."""
     top_n_retrieval: int = 10
+    max_distance_retrieval: float = 1.0
     top_n_reranking: int = 5
+    min_score_reranking: float = 0.0
 
 
 class Settings(BaseModel):
