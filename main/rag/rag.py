@@ -13,6 +13,7 @@ rag_settings = get_settings().rag_settings
 
 
 def generate_answer(message_history: list[dict[str, str]]) -> str:
+    """"""
     # TODO: Add sources to final answer
     query = _rephrase_query(message_history=message_history)
     results = _retrieve_documents(query=query, top_n=rag_settings.top_n_retrieval, max_distance=rag_settings.max_distance_retrieval)

@@ -1,8 +1,9 @@
 import logging
+import asyncio
 
 import streamlit as st
 
-from rag.ingestion import ingest_pdf
+from rag.ingestion import ingest_pdf_async
 from rag.rag import generate_answer
 
 st.title("QueryPDF")
@@ -11,7 +12,7 @@ st.title("QueryPDF")
 pdf_file = st.file_uploader("Upload a PDF", type="pdf")
 if pdf_file is not None and not st.session_state.get("pdf_uploaded", False):
     with st.spinner("Processing PDF..."):
-        ingest_pdf(pdf_file)
+        asyncio.run(ingest_pdf_async(pdf_file))
         st.session_state.pdf_uploaded = True
         st.success("Document indexed! You can now ask questions about the PDF.")
 

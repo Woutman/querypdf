@@ -1,5 +1,22 @@
 import textwrap
 
+INSTRUCTIONS_TEXT_EXTRACTION = (
+    'Extract all text from the attached PDF. '
+    'Return a list of items and their types, which can be either "Title", "Subtitle", "NarrativeText", "List", "Table", "Infographic", "Graph", "Header", "Footer", or "OtherText".\n'
+    '- Title: main title of the page.\n'
+    '- Subtitle: title of subsection of text.\n'
+    '- NarrativeText: Text that makes up the main body of the document and contains most of the information.\n'
+    '- List: A list of items. Can have a category at the top. Include this category.\n'
+    '- Table: A table containing data. Return as CSV. Remove grouping translators from numbers.\n'
+    '- Infographic: A visual representation of a concept or data. Return the main idea that is being conveyed.\n'
+    '- Graph: A graph plot of some data. Draw conclusions from the data. Be thorough and focus on interesting relationships instead of being descriptive.\n'
+    '- Header: Text belonging to a page header.\n'
+    '- Footer: Text belonging to a page footer.\n'
+    '- OtherText: Text not belonging to any other category.\n'
+    'Each item of NarrativeText should contain all text belonging to the previous subtitle. Use markdown to improve legibility of the text.'
+    'Return the results in a JSON object and nothing else.'
+)
+
 INSTRUCTIONS_REPHRASING = textwrap.dedent("""\
     You are an LLM that's part of a RAG pipeline for a chatbot. You handle the query rephrasing part of the RAG pipeline.
     You will be given an OpenAI message history object as input. Your task is to rephrase the final user message so the retrieval and reranking steps will perform better on it. 

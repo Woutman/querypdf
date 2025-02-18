@@ -16,6 +16,12 @@ def _setup_logging() -> None:
     )
 
 
+class IngestionSettings(BaseModel):
+    """Settings for document ingestion"""
+    chunk_size: int = 4000
+    separators: list[str] = ["\n\n", "\n", ".", " ", ""]
+
+
 class LLMSettings(BaseModel):
     """Settings for LLM interactions."""
     temperature: float = 0.7
@@ -27,6 +33,12 @@ class OpenAISettings(LLMSettings):
     api_key: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
     default_model: str = Field(default="gpt-4o-mini")
     embeddings_model: str = Field(default="text-embedding-3-small")
+
+
+class GeminiSettings(LLMSettings):
+    """Settings specific to Gemini models. Extends LLMSettings."""
+    api_key: str = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
+    default_model: str = Field(default="gemini-2.0-flash")
 
   
 class VectorStoreSettings(BaseModel):
@@ -46,7 +58,9 @@ class RAGSettings(BaseModel):
 
 class Settings(BaseModel):
     """Main settings class that combines all settings."""
+    ingestion_settings: IngestionSettings = Field(default_factory=IngestionSettings)
     openai_settings: OpenAISettings = Field(default_factory=OpenAISettings)
+    gemini_settings: GeminiSettings = Field(default_factory=GeminiSettings)
     vector_store_settings: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
     rag_settings: RAGSettings = Field(default_factory=RAGSettings)
 
