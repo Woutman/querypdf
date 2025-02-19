@@ -47,6 +47,12 @@ class VectorStoreSettings(BaseModel):
     table_name: str = "documents"
     embedding_dimenstions: int = 1536
 
+
+class ContextStoreSettings(BaseModel):
+    """Settings for the context store."""
+    service_url: str = Field(default_factory=lambda: os.getenv("TIMESCALE_SERVICE_URL"))
+    table_names: list[str] = ["sections", "paragraphs", "chunks"]
+
   
 class RAGSettings(BaseModel):
     """Settings for RAG."""
@@ -62,6 +68,7 @@ class Settings(BaseModel):
     openai_settings: OpenAISettings = Field(default_factory=OpenAISettings)
     gemini_settings: GeminiSettings = Field(default_factory=GeminiSettings)
     vector_store_settings: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
+    context_store_settings: ContextStoreSettings = Field(default_factory=ContextStoreSettings)
     rag_settings: RAGSettings = Field(default_factory=RAGSettings)
 
 
