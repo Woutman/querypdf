@@ -6,6 +6,7 @@ from settings import get_settings
 
 openai_settings = get_settings().openai_settings
 client = openai.OpenAI(api_key=openai_settings.api_key)
+client_async = openai.AsyncOpenAI(api_key=openai_settings.api_key)
 
 
 def query_gpt(
@@ -39,5 +40,10 @@ def query_gpt(
 
 def get_embeddings(text: str) -> list[float]:
     """Returns the vector embeddings of the input string."""
-    # TODO: Make async
     return client.embeddings.create(input=[text], model=openai_settings.embeddings_model).data[0].embedding
+
+
+async def get_embeddings_async(text: str) -> list[float]:
+    """Returns the vector embeddings of the input string asynchronously."""
+    response =  await client_async.embeddings.create(input=[text], model=openai_settings.embeddings_model)
+    return response.data[0].embedding

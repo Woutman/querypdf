@@ -21,7 +21,9 @@ async def upload_file_async(file: io.BytesIO) -> File:
 
 async def query_gemini_async(
     prompt: str, 
-    model: str = gemini_settings.default_model, 
+    model: str = gemini_settings.default_model,
+    temperature: float = gemini_settings.temperature,
+    top_p: float = gemini_settings.top_p, 
     file: Optional[File] = None,
     return_json: bool = False,
     json_schema: Optional[SchemaUnionDict] = None
@@ -31,16 +33,19 @@ async def query_gemini_async(
             model=model, 
             contents=[prompt, file] if file else prompt,
             config=GenerateContentConfig(
-                temperature=0.0,
-                top_p=0.95,
-                response_mime_type='application/json',
+                temperature=temperature,
+                top_p=top_p,
+                response_mime_type='application/json' if return_json else None,
                 response_schema=json_schema, 
-            ) if return_json else None
+            ) 
         )
     except ClientError as e:
+        # Retry when rate limit is reached.
         if e.code != 429:
             raise e
-        time.sleep(1)
+        sleep_time = 1
+        logging.info(f"Rate limit reached. Retrying in: {sleep_time}s.")
+        time.sleep(sleep_time)
         response = await query_gemini_async(prompt=prompt, model=model, file=file)
 
     if not response.text:

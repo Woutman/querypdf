@@ -18,7 +18,7 @@ from settings import get_settings
 from .instructions import INSTRUCTIONS_TEXT_EXTRACTION
 from llm.gemini_interface import upload_file_async, query_gemini_async
 from database.context_store import insert_context_data, Section, Paragraph, Chunk
-from database.vector_store import upsert_elements, upsert_sections
+from database.vector_store import upsert_elements, upsert_sections_async
 
 ingestion_settings = get_settings().ingestion_settings
 gemini_settings = get_settings().gemini_settings
@@ -32,7 +32,7 @@ async def ingest_pdf_async(pdf_file: UploadedFile) -> None:
     extracted_elements = await _extract_elements_async(uploaded_files=uploaded_files)
     elements_chunked = _chunk_elements(elements=extracted_elements)
     insert_context_data(elements_chunked)
-    upsert_sections(elements_chunked)
+    await upsert_sections_async(elements_chunked)
 
 
 def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
@@ -54,14 +54,28 @@ def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
 
 async def _upload_pages_async(pdf_pages: list[io.BytesIO]) -> list[File]:
     upload_tasks = []
-    for i, page in enumerate(pdf_pages):
+    for page in pdf_pages:
         upload_tasks.append(upload_file_async(file=page))
     uploaded_files = await asyncio.gather(*upload_tasks)
     return uploaded_files
 
 
+class ExtractedElementType(Enum):
+    TITLE = "Title"
+    SUBHEADING = "Subheading"
+    NARRATIVE_TEXT = "NarrativeText"
+    LIST = "List"
+    TABLE = "Table"
+    INFOGRAPHIC = "Infographic"
+    GRAPH = "Graph"
+    HEADER = "Header"
+    FOOTER = "Footer"
+    RUNNINGHEAD = "RunningHead"
+    OTHER_TEXT = "OtherText"
+
+
 class ExtractedElement(BaseModel):
-    type: str
+    type: ExtractedElementType
     text: str
 
 
@@ -72,14 +86,7 @@ class ExtractedElements(BaseModel):
 async def _extract_elements_async(uploaded_files: list[File]) -> list[dict[str, str]]:
     response_tasks = []
     for file in uploaded_files:
-        # TODO: Add validation to responses
-        response_tasks.append(query_gemini_async(
-            prompt=INSTRUCTIONS_TEXT_EXTRACTION, 
-            model=gemini_settings.default_model, 
-            file=file,
-            return_json=True,
-            json_schema=ExtractedElements
-        ))
+        response_tasks.append(_extract_elements_from_file_async(file))
     responses = await asyncio.gather(*response_tasks)
 
     responses_processed = _process_responses(responses=responses)
@@ -87,22 +94,52 @@ async def _extract_elements_async(uploaded_files: list[File]) -> list[dict[str, 
     return responses_processed
 
 
-class ExtractedElementType(Enum):
-    TITLE = "Title"
-    SUBTITLE = "Subtitle"
-    NARRATIVE_TEXT = "NarrativeText"
-    LIST = "List"
-    TABLE = "Table"
-    INFOGRAPHIC = "Infographic"
-    GRAPH = "Graph"
-    HEADER = "Header"
-    FOOTER = "Footer"
-    OTHER_TEXT = "OtherText"
+async def _extract_elements_from_file_async(file: File) -> GenerateContentResponse | None:
+    response = await query_gemini_async(
+        prompt=INSTRUCTIONS_TEXT_EXTRACTION, 
+        model=gemini_settings.default_model, 
+        file=file,
+        return_json=True,
+        json_schema=ExtractedElements
+    )
+
+    if not _response_is_valid(response=response):
+        logging.info(f"Retrying extraction for file: {file.name}.")
+        await _extract_elements_from_file_async(file=file)
+    else:
+        return response
+
+
+def _response_is_valid(response: GenerateContentResponse) -> bool:
+    text = response.text
+    if not text:
+        return False
+    
+    text = text.replace("```json", "").replace("```", "")
+    try:
+        text_deserialized = json.loads(text)
+    except:
+        return False
+    
+    if not "elements" in text_deserialized:
+        return False
+    if not text_deserialized["elements"]:
+        return False
+    
+    for element in text_deserialized["elements"]:
+        if "text" not in element or "type" not in element:
+            return False
+        if not element["type"]:
+            return False
+        
+    return True
 
 
 def _process_responses(responses: list[GenerateContentResponse]) -> list[dict[str, str]]:
-    responses_deserialized = [json.loads(response.text) for response in responses if response.text]
-    relevant_types = ["NarrativeText", "List", "Table", "Infographic", "Graph", "Subtitle"]
+    responses_cleaned = [_clean_response(response) for response in responses]
+    responses_deserialized = [json.loads(response) for response in responses_cleaned]
+
+    relevant_types = ["NarrativeText", "List", "Table", "Infographic", "Graph", "Subheading"]
     respones_flattened = [item for response in responses_deserialized for item in response.get("elements") if item.get("type", "") in relevant_types]
 
     # Remove all irrelevant types from extracted data.
@@ -116,17 +153,33 @@ def _process_responses(responses: list[GenerateContentResponse]) -> list[dict[st
             continue
         
         elif item_type in ["NarrativeText", "List"]:
-            # Prepend NarrativeTexts and Lists with corresponding Subtitle if available.
-            if previous_item and previous_item.get("type", "") == "Subtitle":
+            # Prepend NarrativeTexts and Lists with corresponding Subheading if available.
+            if previous_item and previous_item.get("type", "") == "Subheading":
                 item["text"] = "##"+ previous_item.get("text") + "\n"+ item["text"]
             # Merge NarrativeTexts that are part of sections that span across pages and Lists that have been separated by extraction.
             if previous_item and previous_item.get("type", "") == item_type:
-                item["text"] = previous_item["text"] + item["text"]
+                item["text"] = previous_item["text"] + "\n\n" + item["text"]
                 responses_processed.remove(previous_item)
         previous_item = item
         responses_processed.append(item)
     
     return responses_processed
+
+
+def _clean_response(response: GenerateContentResponse) -> str:
+    if not response.text:
+        raise ValueError("No text in response.")
+    
+    response_cleaned = {}
+    text_deserialized = json.loads(response.text.replace("```json", "").replace("```", ""))
+
+    # TODO: Add doubling of single newlines with Regex
+
+    response_cleaned["elements"] = [element for element in text_deserialized["elements"] if not\
+                                    (element["type"] in ["NarrativeText", "List", "Subheading"] and not element["text"])]
+    
+    response_cleaned = json.dumps(response_cleaned)
+    return response_cleaned
 
 
 def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:

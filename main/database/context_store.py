@@ -1,5 +1,6 @@
 import uuid
 import logging
+from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, Column, Integer, String, TIMESTAMP, func, ForeignKey
@@ -34,6 +35,7 @@ class Chunk(UUIDBaseModel):
     paragraph_index: int
     text: str
     type: str
+    embeddings: Optional[list[float]] = None
 
 
 class ParagraphORM(Base):

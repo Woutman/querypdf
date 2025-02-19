@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -8,7 +9,7 @@ from timescale_vector import client
 from timescale_vector.client import uuid_from_time
 
 from settings import get_settings
-from llm.openai_interface import get_embeddings
+from llm.openai_interface import get_embeddings, get_embeddings_async
 from .context_store import Section
 
 vec_settings = get_settings().vector_store_settings
@@ -41,14 +42,18 @@ except Exception as e:
     logging.error(f"Error while creating GIN index: {str(e)}")
 
 
-def upsert_sections(sections: list[Section]) -> None:
+async def upsert_sections_async(sections: list[Section]) -> None:
     """Upserts a list of documents and their embeddings into the vector database."""
     data = []
     chunks = [chunk for section in sections for paragraph in section.paragraphs for chunk in paragraph.chunks]
-    for chunk in chunks:
+    
+    tasks = [get_embeddings_async(chunk.text) for chunk in chunks]
+    all_embeddings = await asyncio.gather(*tasks)
+
+    for i, chunk in enumerate(chunks):
         uuid = chunk.id
         metadata = {"created_at": datetime.now().isoformat(), "type": chunk.type}
-        embeddings = get_embeddings(chunk.text)
+        embeddings = all_embeddings[i]
         data.append((uuid, metadata, chunk.text, embeddings))
     
     vec_store.upsert(data)

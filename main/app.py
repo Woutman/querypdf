@@ -41,7 +41,10 @@ def _handle_query() -> None:
 
 with st.container(border=True):
     for message in st.session_state.chat_history:
-        st.markdown(f"**{message['role'].upper()}:** {message['content']}")
+        if message['role'] == 'User':
+            st.markdown(f"**{message['role'].upper()}:** _{message['content']}_")
+        else:
+            st.markdown(f"**{message['role'].upper()}:** {message['content']}")
 
     st.text_input("Ask a question about the PDF", key="user_input", on_change=_handle_query)    
     st.button("Send", on_click=_handle_query)

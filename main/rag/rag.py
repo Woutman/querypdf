@@ -50,7 +50,7 @@ def _rerank_documents(query: str, documents: list[list[Any]], top_n: int, min_sc
 
     model_name_or_path = "Alibaba-NLP/gte-multilingual-reranker-base"
 
-    # TODO: Fetch model at docker-compose up to prevent slow first response
+    # TODO: Fetch model at Dockerfile up to prevent slow first response
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
     model = AutoModelForSequenceClassification.from_pretrained(
         model_name_or_path,
