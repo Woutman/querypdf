@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from google import genai
-from google.genai.types import File, UploadFileConfig, GenerateContentResponse, SchemaUnionDict
+from google.genai.types import File, UploadFileConfig, GenerateContentResponse, SchemaUnionDict, GenerateContentConfig
 from google.genai.errors import ClientError
 
 from settings import get_settings
@@ -26,15 +26,16 @@ async def query_gemini_async(
     return_json: bool = False,
     json_schema: Optional[SchemaUnionDict] = None
 ) -> GenerateContentResponse:
-    # TODO: Include temperature and top_p as settings
     try:
         response = await client.aio.models.generate_content(
             model=model, 
             contents=[prompt, file] if file else prompt,
-            config={
-                'response_mime_type': 'application/json',
-                'response_schema': json_schema, 
-            } if return_json else None
+            config=GenerateContentConfig(
+                temperature=0.0,
+                top_p=0.95,
+                response_mime_type='application/json',
+                response_schema=json_schema, 
+            ) if return_json else None
         )
     except ClientError as e:
         if e.code != 429:

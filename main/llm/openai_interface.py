@@ -39,4 +39,5 @@ def query_gpt(
 
 def get_embeddings(text: str) -> list[float]:
     """Returns the vector embeddings of the input string."""
+    # TODO: Make async
     return client.embeddings.create(input=[text], model=openai_settings.embeddings_model).data[0].embedding

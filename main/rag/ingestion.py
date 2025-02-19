@@ -2,6 +2,7 @@ import io
 # mport uuid
 import asyncio
 import json
+import logging
 from enum import Enum
 # from copy import deepcopy
 # from typing import Any
@@ -17,7 +18,7 @@ from settings import get_settings
 from .instructions import INSTRUCTIONS_TEXT_EXTRACTION
 from llm.gemini_interface import upload_file_async, query_gemini_async
 from database.context_store import insert_context_data, Section, Paragraph, Chunk
-from database.vector_store import upsert_elements
+from database.vector_store import upsert_elements, upsert_sections
 
 ingestion_settings = get_settings().ingestion_settings
 gemini_settings = get_settings().gemini_settings
@@ -31,10 +32,7 @@ async def ingest_pdf_async(pdf_file: UploadedFile) -> None:
     extracted_elements = await _extract_elements_async(uploaded_files=uploaded_files)
     elements_chunked = _chunk_elements(elements=extracted_elements)
     insert_context_data(elements_chunked)
-
-    # TODO: Test _process_responses
-    # TODO: Chunk extracted texts with chunk hierarchie for NarrativeTexts
-    # TODO: Ingest chunks
+    upsert_sections(elements_chunked)
 
 
 def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
@@ -50,7 +48,7 @@ def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
 
         pdf_bytes_io.seek(0)
         pdf_pages.append(pdf_bytes_io)
-    print(f"split pdf in {len(pdf_pages)} pages!")
+    logging.info(f"split pdf in {len(pdf_pages)} pages!")
     return pdf_pages
 
 
@@ -103,7 +101,6 @@ class ExtractedElementType(Enum):
 
 
 def _process_responses(responses: list[GenerateContentResponse]) -> list[dict[str, str]]:
-
     responses_deserialized = [json.loads(response.text) for response in responses if response.text]
     relevant_types = ["NarrativeText", "List", "Table", "Infographic", "Graph", "Subtitle"]
     respones_flattened = [item for response in responses_deserialized for item in response.get("elements") if item.get("type", "") in relevant_types]
@@ -117,15 +114,13 @@ def _process_responses(responses: list[GenerateContentResponse]) -> list[dict[st
         if item_type not in types_to_process:
             previous_item = item
             continue
-
-        # TODO: Add NarrativeTexts to sections that span across pages
         
         elif item_type in ["NarrativeText", "List"]:
             # Prepend NarrativeTexts and Lists with corresponding Subtitle if available.
             if previous_item and previous_item.get("type", "") == "Subtitle":
                 item["text"] = "##"+ previous_item.get("text") + "\n"+ item["text"]
-            # Merge NarrativeTexts that are part of sections that span across pages.
-            if previous_item and previous_item.get("type", "") == "NarrativeText" and item_type == "NarrativeText":
+            # Merge NarrativeTexts that are part of sections that span across pages and Lists that have been separated by extraction.
+            if previous_item and previous_item.get("type", "") == item_type:
                 item["text"] = previous_item["text"] + item["text"]
                 responses_processed.remove(previous_item)
         previous_item = item
@@ -139,37 +134,55 @@ def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:
     for element in elements:
         element_type = element.get("type", "")
         if element_type != "NarrativeText":
-            section = Section(paragraphs=[Paragraph(chunks=[Chunk(text=element.get("text", ""), type=element_type)])])
+            section = Section(paragraphs=[
+                Paragraph(
+                    section_index=0, 
+                    chunks=[Chunk(text=element.get("text", ""), type=element_type, paragraph_index=0)]
+                )
+            ])
             elements_chunked.append(section)
             continue
         if element["text"].find("\n\n") == -1 and len(element) <= ingestion_settings.chunk_size:
-            section = Section(paragraphs=[Paragraph(chunks=[Chunk(text=element.get("text", ""), type=element_type)])])
+            section = Section(paragraphs=[
+                Paragraph(
+                    section_index=0, 
+                    chunks=[Chunk(text=element.get("text", ""), type=element_type, paragraph_index=0)]
+                )
+            ])
             elements_chunked.append(section)
             continue
         
         full_text = element["text"]
-
-        # Split texts in paragraphs.
         paragraphs = full_text.split("\n\n")
 
-        # Split paragraphs in chunks if paragraph is bigger than max chunk size.
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=ingestion_settings.chunk_size,
-            chunk_overlap=0,
-            separators=ingestion_settings.separators
-        )
-        paragraphs_chunked = []
-        for paragraph in paragraphs:
-            if len(paragraph) <= ingestion_settings.chunk_size:
-                paragraph_chunks = [paragraph]
-            else:
-                paragraph_chunks = text_splitter.split_text(paragraph)        
-            paragraph_chunked = Paragraph(chunks=[Chunk(text=chunk, type=element.get("type", "")) for chunk in paragraph_chunks])
-            paragraphs_chunked.append(paragraph_chunked)
+        paragraphs_chunked = _split_paragraphs(paragraphs=paragraphs)
         
         element_chunked = Section(paragraphs=paragraphs_chunked)
         elements_chunked.append(element_chunked)
     return elements_chunked
+
+
+def _split_paragraphs(paragraphs: list[str]) -> list[Paragraph]:
+    """Splits paragraphs in chunks if paragraph is bigger than max chunk size."""
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=ingestion_settings.chunk_size,
+        chunk_overlap=0,
+        separators=ingestion_settings.separators
+    )
+    paragraphs_chunked = []
+    for i, paragraph in enumerate(paragraphs):
+        if len(paragraph) <= ingestion_settings.chunk_size:
+            paragraph_chunks = [paragraph]
+        else:
+            paragraph_chunks = text_splitter.split_text(paragraph)
+
+        paragraph_chunked = Paragraph(
+            section_index=i,
+            chunks=[Chunk(text=chunk, type="NarrativeText", paragraph_index=j) for j, chunk in enumerate(paragraph_chunks)]
+        )
+        paragraphs_chunked.append(paragraph_chunked)
+    return paragraphs_chunked
+
 
 '''
 def ingest_pdf(pdf_file: UploadedFile) -> None:

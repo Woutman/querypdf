@@ -6,7 +6,7 @@ INSTRUCTIONS_TEXT_EXTRACTION = (
     '- Title: main title of the page.\n'
     '- Subtitle: title of subsection of text.\n'
     '- NarrativeText: Text that makes up the main body of the document and contains most of the information.\n'
-    '- List: A list of items. Can have a category at the top. Include this category.\n'
+    '- List: A list of items, denoted by bulletpoints. Can have a category at the top. Include this category.\n'
     '- Table: A table containing data. Return as CSV. Remove grouping translators from numbers.\n'
     '- Infographic: A visual representation of a concept or data. Return the main idea that is being conveyed.\n'
     '- Graph: A graph plot of some data. Draw conclusions from the data. Be thorough and focus on interesting relationships instead of being descriptive.\n'
@@ -14,7 +14,7 @@ INSTRUCTIONS_TEXT_EXTRACTION = (
     '- Footer: Text belonging to a page footer.\n'
     '- OtherText: Text not belonging to any other category.\n'
     'Each item of NarrativeText should contain all text belonging to the previous subtitle. Use markdown to improve legibility of the text.'
-    'Return the results in a JSON object and nothing else.'
+    'Return the results in a JSON object and nothing else. DO NOT wrap your output in a code block.'
 )
 
 INSTRUCTIONS_REPHRASING = textwrap.dedent("""\

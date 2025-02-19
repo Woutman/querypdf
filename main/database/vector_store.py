@@ -9,6 +9,7 @@ from timescale_vector.client import uuid_from_time
 
 from settings import get_settings
 from llm.openai_interface import get_embeddings
+from .context_store import Section
 
 vec_settings = get_settings().vector_store_settings
 
@@ -38,6 +39,19 @@ try:
             logging.info(f"GIN index '{index_name}' created or already exists.")
 except Exception as e:
     logging.error(f"Error while creating GIN index: {str(e)}")
+
+
+def upsert_sections(sections: list[Section]) -> None:
+    """Upserts a list of documents and their embeddings into the vector database."""
+    data = []
+    chunks = [chunk for section in sections for paragraph in section.paragraphs for chunk in paragraph.chunks]
+    for chunk in chunks:
+        uuid = chunk.id
+        metadata = {"created_at": datetime.now().isoformat(), "type": chunk.type}
+        embeddings = get_embeddings(chunk.text)
+        data.append((uuid, metadata, chunk.text, embeddings))
+    
+    vec_store.upsert(data)
 
 
 def upsert(documents: list[str]) -> None:
