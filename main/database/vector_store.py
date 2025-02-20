@@ -43,12 +43,19 @@ except Exception as e:
 
 
 async def upsert_sections_async(sections: list[Section]) -> None:
-    """Upserts a list of documents and their embeddings into the vector database."""
+    """Upserts a list of documents and their embeddings into the vector database asynchronously."""
     data = []
     chunks = [chunk for section in sections for paragraph in section.paragraphs for chunk in paragraph.chunks]
     
     tasks = [get_embeddings_async(chunk.text) for chunk in chunks]
-    all_embeddings = await asyncio.gather(*tasks)
+
+    batch_size = 50
+    all_embeddings = []
+    for i in range(0, len(tasks), batch_size):
+        batch = tasks[i:i + batch_size]
+        results = await asyncio.gather(*batch)
+        all_embeddings.extend(results)
+    logging.info(f"Embeddings created: {len(all_embeddings)}")
 
     for i, chunk in enumerate(chunks):
         uuid = chunk.id
@@ -57,6 +64,7 @@ async def upsert_sections_async(sections: list[Section]) -> None:
         data.append((uuid, metadata, chunk.text, embeddings))
     
     vec_store.upsert(data)
+    logging.info(f"Documents upserted: {len(data)}")
 
 
 def upsert(documents: list[str]) -> None:

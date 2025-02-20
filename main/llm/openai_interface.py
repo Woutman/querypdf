@@ -1,3 +1,5 @@
+import logging
+import asyncio
 from typing import Optional, Any
 
 import openai
@@ -40,10 +42,30 @@ def query_gpt(
 
 def get_embeddings(text: str) -> list[float]:
     """Returns the vector embeddings of the input string."""
+    if not text:
+        raise ValueError("String to embed is empty.")
     return client.embeddings.create(input=[text], model=openai_settings.embeddings_model).data[0].embedding
 
 
 async def get_embeddings_async(text: str) -> list[float]:
     """Returns the vector embeddings of the input string asynchronously."""
-    response =  await client_async.embeddings.create(input=[text], model=openai_settings.embeddings_model)
-    return response.data[0].embedding
+    if not text:
+        raise ValueError("String to embed is empty.")
+    
+    semaphore = asyncio.Semaphore(50)
+    async with semaphore:
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.wait_for(
+                    client_async.embeddings.create(input=[text], model=openai_settings.embeddings_model),
+                    timeout=10
+                )
+                logging.info("Created embedding!")
+                return response.data[0].embedding
+            except (asyncio.TimeoutError, Exception) as e:
+                wait_time = 2 ** attempt
+                logging.warning(f"Attempt {attempt+1} failed with error: {e}. Retrying in {wait_time} seconds...")
+                await asyncio.sleep(wait_time)
+        logging.error("Max retries exceeded for embedding request.")
+        raise Exception("Max retries exceeded for embedding request.")

@@ -18,8 +18,8 @@ def _setup_logging() -> None:
 
 class IngestionSettings(BaseModel):
     """Settings for document ingestion"""
-    chunk_size: int = 4000
-    separators: list[str] = ["\n\n", "\n", ".", " ", ""]
+    chunk_size: int = 1024
+    separators: list[str] = [".", " ", ""]
 
 
 class LLMSettings(BaseModel):
@@ -60,6 +60,8 @@ class RAGSettings(BaseModel):
     max_distance_retrieval: float = 1.0
     top_n_reranking: int = 5
     min_score_reranking: float = 0.0
+    add_paragraph_threshold: float = 0.0
+    add_section_threshold: float = 0.0
 
 
 class Settings(BaseModel):

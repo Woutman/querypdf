@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from settings import get_settings
 from llm.openai_interface import query_gpt, get_embeddings
 from database.vector_store import vec_store
+from database.context_store import retrieve_parent_chunks
 from rag.instructions import INSTRUCTIONS_REPHRASING, INSTRUCTIONS_SUMMARIZATION
 
 rag_settings = get_settings().rag_settings
@@ -34,18 +35,19 @@ def _rephrase_query(message_history: list[dict[str, str]]) -> str:
     return result
 
 
-def _retrieve_documents(query: str, top_n: int, max_distance: float) -> list[list[Any]]:
+def _retrieve_documents(query: str, top_n: int, max_distance: float) -> list[str]:
     query_embeddings = get_embeddings(text=query)
     results = vec_store.search(query_embedding=query_embeddings, limit=top_n) # TODO: Implement filters
     if not results:
         return []
 
     relevant_documents = [doc for doc in results if doc[-1] <= max_distance]
+    parent_chunks = retrieve_parent_chunks(chunk_ids=[doc[0] for doc in relevant_documents])
+    
+    return parent_chunks
 
-    return relevant_documents
 
-
-def _rerank_documents(query: str, documents: list[list[Any]], top_n: int, min_score: float) -> list[list[Any]]:
+def _rerank_documents(query: str, documents: list[str], top_n: int, min_score: float) -> list[str]:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model_name_or_path = "Alibaba-NLP/gte-multilingual-reranker-base"
@@ -61,19 +63,20 @@ def _rerank_documents(query: str, documents: list[list[Any]], top_n: int, min_sc
     model.to(device)
     model.eval()
 
-    pairs = [[query, doc[2]] for doc in documents]
+    pairs = [[query, doc] for doc in documents]
     with torch.no_grad():
         inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors='pt', max_length=8192)
         inputs = {key: value.to(device) for key, value in inputs.items()}
         scores = model(**inputs, return_dict=True).logits.view(-1, ).float()
 
     ranked_documents = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True) # Reverse order improves summarization step slightly. For more info, see: https://arxiv.org/pdf/2407.01219
+    result = [doc for doc, score in ranked_documents[:top_n] if score >= min_score]
     
-    return [doc for doc, score in ranked_documents[:top_n] if score >= min_score]
+    return result
 
 
-def _summarize_documents(query: str, documents: list[list[Any]]) -> str:
-    documents_content = [doc[2] for doc in documents]
+def _summarize_documents(query: str, documents: list[str]) -> str:
+    documents_content = [doc for doc in documents]
     documents_as_str = "\n\n".join(documents_content)
     messages = [
         {"role": "system", "content": INSTRUCTIONS_SUMMARIZATION},

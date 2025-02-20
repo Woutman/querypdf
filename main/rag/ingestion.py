@@ -11,7 +11,6 @@ import pymupdf
 from pydantic import BaseModel
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-# from unstructured.partition.pdf import partition_pdf
 from google.genai.types import File, GenerateContentResponse
 
 from settings import get_settings
@@ -26,6 +25,9 @@ gemini_settings = get_settings().gemini_settings
 
 async def ingest_pdf_async(pdf_file: UploadedFile) -> None:
     """Main pipeline for ingestion of an uploaded PDF file."""
+    import time
+    start_time = time.perf_counter()
+
     pdf_pages = _split_pdf(pdf_file=pdf_file)
     
     uploaded_files = await _upload_pages_async(pdf_pages=pdf_pages)
@@ -34,6 +36,9 @@ async def ingest_pdf_async(pdf_file: UploadedFile) -> None:
     insert_context_data(elements_chunked)
     await upsert_sections_async(elements_chunked)
 
+    end_time = time.perf_counter()
+    logging.info(f"PDF ingested in {end_time-start_time} seconds.")
+    
 
 def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
     doc = pymupdf.open(stream=pdf_file.read(), filetype='pdf')
@@ -89,6 +94,7 @@ async def _extract_elements_async(uploaded_files: list[File]) -> list[dict[str, 
         response_tasks.append(_extract_elements_from_file_async(file))
     responses = await asyncio.gather(*response_tasks)
 
+    logging.info(f"Resonses received: {len(responses)}.")
     responses_processed = _process_responses(responses=responses)
 
     return responses_processed
@@ -105,7 +111,7 @@ async def _extract_elements_from_file_async(file: File) -> GenerateContentRespon
 
     if not _response_is_valid(response=response):
         logging.info(f"Retrying extraction for file: {file.name}.")
-        await _extract_elements_from_file_async(file=file)
+        return await _extract_elements_from_file_async(file=file)
     else:
         return response
 
@@ -155,14 +161,21 @@ def _process_responses(responses: list[GenerateContentResponse]) -> list[dict[st
         elif item_type in ["NarrativeText", "List"]:
             # Prepend NarrativeTexts and Lists with corresponding Subheading if available.
             if previous_item and previous_item.get("type", "") == "Subheading":
-                item["text"] = "##"+ previous_item.get("text") + "\n"+ item["text"]
+                item["text"] = "##" + previous_item.get("text") + "\n"+ item["text"]
             # Merge NarrativeTexts that are part of sections that span across pages and Lists that have been separated by extraction.
             if previous_item and previous_item.get("type", "") == item_type:
                 item["text"] = previous_item["text"] + "\n\n" + item["text"]
                 responses_processed.remove(previous_item)
+            # Append Lists to preceeding NarrativeTexts, since they are part of the text.
+            if previous_item and item_type == "List" and previous_item.get("type", "") == "NarrativeText":
+                item["text"] = previous_item["text"] + "\n\n" + item["text"]
+                item["type"] = "NarrativeText"
+                responses_processed.remove(previous_item)
+
         previous_item = item
         responses_processed.append(item)
     
+    logging.info(f"Responses processed into {len(responses_processed)} elements.")
     return responses_processed
 
 
@@ -175,22 +188,22 @@ def _clean_response(response: GenerateContentResponse) -> str:
 
     # TODO: Add doubling of single newlines with Regex
 
-    response_cleaned["elements"] = [element for element in text_deserialized["elements"] if not\
-                                    (element["type"] in ["NarrativeText", "List", "Subheading"] and not element["text"])]
+    response_cleaned["elements"] = [element for element in text_deserialized["elements"] if element["text"]]
     
     response_cleaned = json.dumps(response_cleaned)
+
     return response_cleaned
 
 
 def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:
     elements_chunked = []
     for element in elements:
-        element_type = element.get("type", "")
+        element_type = element["type"]
         if element_type != "NarrativeText":
             section = Section(paragraphs=[
                 Paragraph(
                     section_index=0, 
-                    chunks=[Chunk(text=element.get("text", ""), type=element_type, paragraph_index=0)]
+                    chunks=[Chunk(text=element["text"], type=element_type, paragraph_index=0)]
                 )
             ])
             elements_chunked.append(section)
@@ -199,7 +212,7 @@ def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:
             section = Section(paragraphs=[
                 Paragraph(
                     section_index=0, 
-                    chunks=[Chunk(text=element.get("text", ""), type=element_type, paragraph_index=0)]
+                    chunks=[Chunk(text=element["text"], type=element_type, paragraph_index=0)]
                 )
             ])
             elements_chunked.append(section)
@@ -208,10 +221,14 @@ def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:
         full_text = element["text"]
         paragraphs = full_text.split("\n\n")
 
+        # Remove empty strings
+        paragraphs = [paragraph for paragraph in paragraphs if paragraph]
+
         paragraphs_chunked = _split_paragraphs(paragraphs=paragraphs)
         
         element_chunked = Section(paragraphs=paragraphs_chunked)
         elements_chunked.append(element_chunked)
+    logging.info("Chunking of elements completed.")
     return elements_chunked
 
 
