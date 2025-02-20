@@ -5,7 +5,7 @@ figures/
 .vscode/
 Dockerfile.dev
 docker-compose.override.yml
-entrypoint.sh
+entrypoint_dev.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

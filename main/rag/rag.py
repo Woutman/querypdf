@@ -50,13 +50,12 @@ def _retrieve_documents(query: str, top_n: int, max_distance: float) -> list[str
 def _rerank_documents(query: str, documents: list[str], top_n: int, min_score: float) -> list[str]:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    model_name_or_path = "Alibaba-NLP/gte-multilingual-reranker-base"
+    model_path = "models/alibaba"
 
-    # TODO: Fetch model at Dockerfile up to prevent slow first response
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForSequenceClassification.from_pretrained(
-        model_name_or_path,
-        revision="815b4a86b71f0ecba053e5814a6c24aa7199301e",    # Model uses custom files, so use this version to ensure no malicious code.
+        model_path,
+        revision="815b4a86b71f0ecba053e5814a6c24aa7199301e",  # Ensures using a specific safe revision
         trust_remote_code=True,
         torch_dtype=torch.float16
     )

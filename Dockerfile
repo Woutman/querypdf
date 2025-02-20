@@ -8,6 +8,10 @@ RUN pip install torch --index-url https://download.pytorch.org/whl/cu126
 
 COPY . .
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 8501
 
-CMD ["streamlit", "run", "./main/app.py", " --server.runOnSave true"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["streamlit", "run", "./main/app.py", "--server.runOnSave true"]
