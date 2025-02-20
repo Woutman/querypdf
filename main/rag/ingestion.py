@@ -110,6 +110,7 @@ async def _extract_elements_from_file_async(file: File) -> GenerateContentRespon
     )
 
     if not _response_is_valid(response=response):
+        # TODO: Add more thorough retry logic that also catches API errors.
         logging.info(f"Retrying extraction for file: {file.name}.")
         return await _extract_elements_from_file_async(file=file)
     else:
@@ -186,7 +187,7 @@ def _clean_response(response: GenerateContentResponse) -> str:
     response_cleaned = {}
     text_deserialized = json.loads(response.text.replace("```json", "").replace("```", ""))
 
-    # TODO: Add doubling of single newlines with Regex
+    # TODO: Add removal of single newlines in texts
 
     response_cleaned["elements"] = [element for element in text_deserialized["elements"] if element["text"]]
     

@@ -13,13 +13,13 @@ from rag.instructions import INSTRUCTIONS_REPHRASING, INSTRUCTIONS_SUMMARIZATION
 rag_settings = get_settings().rag_settings
 
 
-def generate_answer(message_history: list[dict[str, str]]) -> str:
+def generate_answer(message_history: list[dict[str, str]], role: str) -> str:
     """"""
     # TODO: Add sources to final answer
     query = _rephrase_query(message_history=message_history)
     results = _retrieve_documents(query=query, top_n=rag_settings.top_n_retrieval, max_distance=rag_settings.max_distance_retrieval)
     results = _rerank_documents(query=query, documents=results, top_n=rag_settings.top_n_reranking, min_score=rag_settings.min_score_reranking)
-    response = _summarize_documents(query=query, documents=results)
+    response = _summarize_documents(query=query, documents=results, role=role)
     
     return response
     
@@ -75,11 +75,11 @@ def _rerank_documents(query: str, documents: list[str], top_n: int, min_score: f
     return result
 
 
-def _summarize_documents(query: str, documents: list[str]) -> str:
+def _summarize_documents(query: str, documents: list[str], role: str) -> str:
     documents_content = [doc for doc in documents]
     documents_as_str = "\n\n".join(documents_content)
     messages = [
-        {"role": "system", "content": INSTRUCTIONS_SUMMARIZATION},
+        {"role": "system", "content": INSTRUCTIONS_SUMMARIZATION.format(role=role)},
         {"role": "user", "content": f"Documents:\n{documents_as_str}\n\nQuery: {query}"}
     ]
 
