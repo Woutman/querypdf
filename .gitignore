@@ -6,6 +6,7 @@ figures/
 Dockerfile.dev
 docker-compose.override.yml
 entrypoint_dev.sh
+README.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

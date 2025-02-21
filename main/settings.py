@@ -40,17 +40,22 @@ class GeminiSettings(LLMSettings):
     api_key: str = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
     default_model: str = Field(default="gemini-2.0-flash")
 
+
+class DatabaseSettings(BaseModel):
+    """Settings for the PostgreSQL database."""
+    service_url: str = Field(
+        default_factory=lambda:\
+            f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@timescaledb:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}"
+    )
   
-class VectorStoreSettings(BaseModel):
+class VectorStoreSettings(DatabaseSettings):
     """Settings for the vector store."""
-    service_url: str = Field(default_factory=lambda: os.getenv("TIMESCALE_SERVICE_URL"))
     table_name: str = "documents"
     embedding_dimenstions: int = 1536
 
 
-class ContextStoreSettings(BaseModel):
+class ContextStoreSettings(DatabaseSettings):
     """Settings for the context store."""
-    service_url: str = Field(default_factory=lambda: os.getenv("TIMESCALE_SERVICE_URL"))
     table_names: list[str] = ["sections", "paragraphs", "chunks"]
 
   
