@@ -10,7 +10,7 @@ from google.genai.errors import ClientError
 from settings import get_settings
 
 gemini_settings = get_settings().gemini_settings
-client = genai.Client(api_key="AIzaSyDpsqTSxoHIRTEgYyKG9YJ6EHkwcs1Gh4c")
+client = genai.Client(api_key=gemini_settings.api_key)
 
         
 async def upload_file_async(file: io.BytesIO) -> File:
