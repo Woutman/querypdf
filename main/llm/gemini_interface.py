@@ -14,6 +14,7 @@ client = genai.Client(api_key="AIzaSyDpsqTSxoHIRTEgYyKG9YJ6EHkwcs1Gh4c")
 
         
 async def upload_file_async(file: io.BytesIO) -> File:
+    """Uploads a file to Gemini asunchronously"""
     uploaded_file = await client.aio.files.upload(file=file, config=UploadFileConfig(mime_type='application/pdf'))
     logging.info(f"uploaded file: {uploaded_file.name}")
     return uploaded_file
@@ -28,6 +29,7 @@ async def query_gemini_async(
     return_json: bool = False,
     json_schema: Optional[SchemaUnionDict] = None
 ) -> GenerateContentResponse:
+    """Sends a query to Gemini and returns the response."""
     try:
         response = await client.aio.models.generate_content(
             model=model, 

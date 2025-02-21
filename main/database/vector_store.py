@@ -3,7 +3,6 @@ import asyncio
 from datetime import datetime
 from typing import Any
 
-import psycopg2
 from psycopg2.errors import DuplicateTable
 from timescale_vector import client
 from timescale_vector.client import uuid_from_time
@@ -25,21 +24,6 @@ try:
     vec_store.create_embedding_index(client.DiskAnnIndex())
 except DuplicateTable:
     pass
-
-# Create keyword search index
-index_name = f"idx_{vec_settings.table_name}_contents_gin"
-create_index_sql = f"""
-CREATE INDEX IF NOT EXISTS {index_name}
-ON {vec_settings.table_name} USING gin(to_tsvector('english', contents));
-"""
-try:
-    with psycopg2.connect(vec_settings.service_url) as conn:
-        with conn.cursor() as cur:
-            cur.execute(create_index_sql)
-            conn.commit()
-            logging.info(f"GIN index '{index_name}' created or already exists.")
-except Exception as e:
-    logging.error(f"Error while creating GIN index: {str(e)}")
 
 
 async def upsert_sections_async(sections: list[Section]) -> None:
@@ -92,14 +76,3 @@ def upsert_elements(elements: list[dict[str, Any]]) -> None:
         data.append((uuid, metadata, document, embeddings))
     
     vec_store.upsert(data)
-
-
-if __name__ == "__main__":
-    documents = ["Dogs are brown", "Italy is a country"]
-    upsert(documents)
-
-    query = "What color are dogs?"
-    query_embeddings = get_embeddings(query)
-    print(vec_store.search(query_embeddings))
-    
-    vec_store.delete_all()

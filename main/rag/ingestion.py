@@ -1,37 +1,40 @@
 import io
-# mport uuid
 import asyncio
-import json
 import logging
-from enum import Enum
-# from copy import deepcopy
-# from typing import Any
 
 import pymupdf
-from pydantic import BaseModel
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from google.genai.types import File, GenerateContentResponse
+from google.genai.types import File
 
 from settings import get_settings
-from .instructions import INSTRUCTIONS_TEXT_EXTRACTION
-from llm.gemini_interface import upload_file_async, query_gemini_async
-from database.context_store import insert_context_data, Section, Paragraph, Chunk
-from database.vector_store import upsert_elements, upsert_sections_async
+from llm.gemini_interface import upload_file_async
+from database.context_store import insert_context_data
+from database.vector_store import upsert_sections_async
+from .extraction import extract_elements_async
+from .types import Chunk, Paragraph, Section
 
 ingestion_settings = get_settings().ingestion_settings
 gemini_settings = get_settings().gemini_settings
 
 
 async def ingest_pdf_async(pdf_file: UploadedFile) -> None:
-    """Main pipeline for ingestion of an uploaded PDF file."""
+    """
+    Main pipeline for ingestion of an uploaded PDF file. It performs the following steps:
+        1. The PDF file is split into pages.
+        2. The pages are uploaded to Gemini.
+        3. Relevant elements (Paragraphs, Tables, Graphs, etc.) are extracted from the pages.
+        4. Text elements are hierarchically divided into chunks. This hierarchy is the chunk context.
+        5. The context is inserted in the context store.
+        6. The lowest level chunks are upserted into the vector store as docments.
+    """
     import time
     start_time = time.perf_counter()
 
     pdf_pages = _split_pdf(pdf_file=pdf_file)
     
     uploaded_files = await _upload_pages_async(pdf_pages=pdf_pages)
-    extracted_elements = await _extract_elements_async(uploaded_files=uploaded_files)
+    extracted_elements = await extract_elements_async(uploaded_files=uploaded_files)
     elements_chunked = _chunk_elements(elements=extracted_elements)
     insert_context_data(elements_chunked)
     await upsert_sections_async(elements_chunked)
@@ -41,6 +44,7 @@ async def ingest_pdf_async(pdf_file: UploadedFile) -> None:
     
 
 def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
+    """Splits a PDF file into its individual pages.""" 
     doc = pymupdf.open(stream=pdf_file.read(), filetype='pdf')
     pdf_pages = []
     for page_num in range(len(doc)):
@@ -58,6 +62,7 @@ def _split_pdf(pdf_file: UploadedFile) -> list[io.BytesIO]:
 
 
 async def _upload_pages_async(pdf_pages: list[io.BytesIO]) -> list[File]:
+    """Uploads a PDF file split into individual pages to Gemini asynchronously."""
     upload_tasks = []
     for page in pdf_pages:
         upload_tasks.append(upload_file_async(file=page))
@@ -65,138 +70,8 @@ async def _upload_pages_async(pdf_pages: list[io.BytesIO]) -> list[File]:
     return uploaded_files
 
 
-class ExtractedElementType(Enum):
-    TITLE = "Title"
-    SUBHEADING = "Subheading"
-    NARRATIVE_TEXT = "NarrativeText"
-    LIST = "List"
-    TABLE = "Table"
-    INFOGRAPHIC = "Infographic"
-    GRAPH = "Graph"
-    HEADER = "Header"
-    FOOTER = "Footer"
-    RUNNINGHEAD = "RunningHead"
-    OTHER_TEXT = "OtherText"
-
-
-class ExtractedElement(BaseModel):
-    type: ExtractedElementType
-    text: str
-
-
-class ExtractedElements(BaseModel):
-    elements: list[ExtractedElement]
-    
-
-async def _extract_elements_async(uploaded_files: list[File]) -> list[dict[str, str]]:
-    response_tasks = []
-    for file in uploaded_files:
-        response_tasks.append(_extract_elements_from_file_async(file))
-    responses = await asyncio.gather(*response_tasks)
-
-    logging.info(f"Resonses received: {len(responses)}.")
-    responses_processed = _process_responses(responses=responses)
-
-    return responses_processed
-
-
-async def _extract_elements_from_file_async(file: File) -> GenerateContentResponse | None:
-    response = await query_gemini_async(
-        prompt=INSTRUCTIONS_TEXT_EXTRACTION, 
-        model=gemini_settings.default_model, 
-        file=file,
-        return_json=True,
-        json_schema=ExtractedElements
-    )
-
-    if not _response_is_valid(response=response):
-        # TODO: Add more thorough retry logic that also catches API errors.
-        logging.info(f"Retrying extraction for file: {file.name}.")
-        return await _extract_elements_from_file_async(file=file)
-    else:
-        return response
-
-
-def _response_is_valid(response: GenerateContentResponse) -> bool:
-    text = response.text
-    if not text:
-        return False
-    
-    text = text.replace("```json", "").replace("```", "")
-    try:
-        text_deserialized = json.loads(text)
-    except:
-        return False
-    
-    if not "elements" in text_deserialized:
-        return False
-    if not text_deserialized["elements"]:
-        return False
-    
-    for element in text_deserialized["elements"]:
-        if "text" not in element or "type" not in element:
-            return False
-        if not element["type"]:
-            return False
-        
-    return True
-
-
-def _process_responses(responses: list[GenerateContentResponse]) -> list[dict[str, str]]:
-    responses_cleaned = [_clean_response(response) for response in responses]
-    responses_deserialized = [json.loads(response) for response in responses_cleaned]
-
-    relevant_types = ["NarrativeText", "List", "Table", "Infographic", "Graph", "Subheading"]
-    respones_flattened = [item for response in responses_deserialized for item in response.get("elements") if item.get("type", "") in relevant_types]
-
-    # Remove all irrelevant types from extracted data.
-    responses_processed = []
-    types_to_process = ["NarrativeText", "List", "Table", "Infographic", "Graph"]
-    previous_item = None
-    for item in respones_flattened:
-        item_type = item.get("type", "")
-        if item_type not in types_to_process:
-            previous_item = item
-            continue
-        
-        elif item_type in ["NarrativeText", "List"]:
-            # Prepend NarrativeTexts and Lists with corresponding Subheading if available.
-            if previous_item and previous_item.get("type", "") == "Subheading":
-                item["text"] = "##" + previous_item.get("text") + "\n"+ item["text"]
-            # Merge NarrativeTexts that are part of sections that span across pages and Lists that have been separated by extraction.
-            if previous_item and previous_item.get("type", "") == item_type:
-                item["text"] = previous_item["text"] + "\n\n" + item["text"]
-                responses_processed.remove(previous_item)
-            # Append Lists to preceeding NarrativeTexts, since they are part of the text.
-            if previous_item and item_type == "List" and previous_item.get("type", "") == "NarrativeText":
-                item["text"] = previous_item["text"] + "\n\n" + item["text"]
-                item["type"] = "NarrativeText"
-                responses_processed.remove(previous_item)
-
-        previous_item = item
-        responses_processed.append(item)
-    
-    logging.info(f"Responses processed into {len(responses_processed)} elements.")
-    return responses_processed
-
-
-def _clean_response(response: GenerateContentResponse) -> str:
-    if not response.text:
-        raise ValueError("No text in response.")
-    
-    response_cleaned = {}
-    text_deserialized = json.loads(response.text.replace("```json", "").replace("```", ""))
-
-    # TODO: Add removal of single newlines in texts
-
-    response_cleaned["elements"] = [element for element in text_deserialized["elements"] if element["text"]]
-    
-    response_cleaned = json.dumps(response_cleaned)
-
-    return response_cleaned
-
-
 def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:
+    """Divides text elements into smaller chunks and creates a hierarchical structure for hierarchical retrieval."""
     elements_chunked = []
     for element in elements:
         element_type = element["type"]
@@ -234,7 +109,7 @@ def _chunk_elements(elements: list[dict[str, str]]) -> list[Section]:
 
 
 def _split_paragraphs(paragraphs: list[str]) -> list[Paragraph]:
-    """Splits paragraphs in chunks if paragraph is bigger than max chunk size."""
+    """Splits paragraphs in chunks if paragraph is bigger than the chunk size."""
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=ingestion_settings.chunk_size,
         chunk_overlap=0,
@@ -253,84 +128,3 @@ def _split_paragraphs(paragraphs: list[str]) -> list[Paragraph]:
         )
         paragraphs_chunked.append(paragraph_chunked)
     return paragraphs_chunked
-
-
-'''
-def ingest_pdf(pdf_file: UploadedFile) -> None:
-    # TODO: Remove old solutions
-    elements = _extract_text_elements(pdf_file=pdf_file)
-    elements_chunked = _chunk_extracted_elements(elements=elements)
-    """
-    extracted_text = _extract_text(pdf_file=pdf_file)
-    chunks = _chunk_text(extracted_text)
-    upsert(documents=chunks)
-    """
-
-
-def _extract_text_elements(pdf_file: UploadedFile) -> list[dict[str, Any]]:
-    """Extracts all text elements from an uploaded PDF file and enriches them with metadata."""
-    elements = partition_pdf(
-        file=io.BytesIO(pdf_file.read()),
-        strategy='hi_res'
-    )
-    text_elements = [e.to_dict() for e in elements if e.category in ['Title', 'NarrativeText', 'ListItem']]
-    return text_elements
-
-
-def _chunk_extracted_elements(elements: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """
-    Checks if the text of elements is larger than the chunk size. 
-    If so, it splits the element in elements with smaller texts, while keeping the metadata.
-    """
-    replace_mapping = {}
-    for i, element in enumerate(elements):
-        text = element.get('text', "")
-        if len(text) <= ingestion_settings.chunk_size:
-            continue
-
-        chunks = _chunk_text(text)
-        new_elements = []
-        for chunk in chunks:
-            # Enrich each chunk with metadata from the original element.
-            new_element = deepcopy(element)
-            new_element['element_id'] = uuid.uuid4()
-            new_element['text'] = chunk
-            new_elements.append(new_element)
-        replace_mapping[i] = new_elements
-
-    # Replace chunked elements with corresponding new elements.
-    for j in reversed(replace_mapping.keys()):
-        elements[j:j+1] = replace_mapping[j]
-
-    return elements
-
-
-def _extract_text(pdf_file: UploadedFile) -> str:
-    # TODO: Try Gemini 2.0 Flash for text extraction. Or Unstructured.
-    extracted_text = ""
-    with pymupdf.open(stream=pdf_file.read(), filetype='pdf') as pdf:
-        for i, page in enumerate(pdf): # type: ignore
-            page_text = page.get_text("text") # type: ignore
-            extracted_text += page_text + "\n"
-    return extracted_text.replace("\n", "")
-
-
-def _chunk_text(text: str) -> list[str]:
-    """Splits large texts into smaller texts, according to chunk size."""
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=ingestion_settings.chunk_size,
-        chunk_overlap=0,
-        separators=ingestion_settings.separators
-    )
-    text_chunks = text_splitter.split_text(text)
-    return text_chunks
-
-
-if __name__ == "__main__":
-    import os
-    fps = [f"test/files/results/result_{i}" for i in range(10, 15)]
-    for fp in fps:
-        os.rename(fp, fp + ".txt")
-    
-    # results = _process_responses()
-'''
