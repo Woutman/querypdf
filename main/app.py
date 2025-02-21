@@ -10,7 +10,7 @@ st.title("QueryPDF")
 # Upload PDF
 pdf_file = st.file_uploader("Upload a PDF", type="pdf")
 if pdf_file is not None and not st.session_state.get("pdf_uploaded", False):
-    with st.spinner("Processing PDF. This may take several minutes..."):
+    with st.spinner("Processing PDF. This can take several minutes..."):
         asyncio.run(ingest_pdf_async(pdf_file))
         st.session_state.pdf_uploaded = True
         st.success("Document indexed! You can now ask questions about the PDF.")

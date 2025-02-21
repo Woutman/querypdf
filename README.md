@@ -9,7 +9,7 @@
 
 ## Introduction
 
-**QueryPDF** is an advanced RAG-powered chatbot that allows users to query PDF documents using OpenAI's GPT models and Google's Gemini models. By leveraging a robust pipeline that includes document ingestion, data extraction, vector storage, auto-merging retrieval, and reranking, QueryPDF provides highly relevant and contextual responses based on uploaded PDFs. The chatbot is optimized for handling conversations, ensuring continuity and context-aware interactions.
+**QueryPDF** is a RAG-powered chatbot that allows users to query PDF documents using OpenAI's GPT models and Google's Gemini models. By leveraging a pipeline that includes document ingestion, data extraction, vector storage, auto-merging retrieval, and reranking, QueryPDF provides relevant and contextual responses based on uploaded PDFs. The chatbot is optimized for handling conversations, ensuring continuity and context-aware interactions.
 
 Key technologies used in QueryPDF:
 - Streamlit for an intuitive web interface.
@@ -27,7 +27,6 @@ Key technologies used in QueryPDF:
 - Uses Retrieval-Augmented Generation (RAG) to fetch the most relevant information.
 
 ### ⚡ High-Performance Embedding & Retrieval
-- **OpenAI's embedding models** power semantic search.
 - **PostgreSQL with TimescaleDB** for efficient vector storage and retrieval.
 - **Auto-merging retrieval with reranking** for improved document ranking and relevance.
 
@@ -63,6 +62,8 @@ Key technologies used in QueryPDF:
 
 4. **Run the Docker container with docker-compose**
    Run ```sh docker-compose up``` to run the Docker container.
+
+**Troubleshooting:** If `docker-compose up` can't find `/entrypoint.sh`, check whether `/entrypoint.sh` has LF line breaks.
 
 ## Usage
 
