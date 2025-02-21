@@ -10,7 +10,7 @@ st.title("QueryPDF")
 # Upload PDF
 pdf_file = st.file_uploader("Upload a PDF", type="pdf")
 if pdf_file is not None and not st.session_state.get("pdf_uploaded", False):
-    with st.spinner("Processing PDF..."):
+    with st.spinner("Processing PDF. This may take several minutes..."):
         asyncio.run(ingest_pdf_async(pdf_file))
         st.session_state.pdf_uploaded = True
         st.success("Document indexed! You can now ask questions about the PDF.")
@@ -50,7 +50,7 @@ with st.container(border=True):
         else:
             st.markdown(f"**{message['role'].upper()}:**\n{message['content']}")
 
-    st.text_input("Ask a question about the PDF", key="user_input", on_change=_handle_query)   
+    st.text_input("Ask a question about the PDF", key="user_input")   
     col1, col2 = st.columns([8, 1], vertical_alignment="bottom")
     with col1:
         st.selectbox("Response tone", key="tone_selectbox", options=roles)
