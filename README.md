@@ -9,7 +9,7 @@
 
 ## Introduction
 
-**QueryPDF** is a RAG-powered chatbot that allows users to query PDF documents using OpenAI's GPT models and Google's Gemini models. By leveraging a pipeline that includes document ingestion, data extraction, vector storage, auto-merging retrieval, and reranking, QueryPDF provides relevant and contextual responses based on uploaded PDFs. The chatbot is optimized for handling conversations, ensuring continuity and context-aware interactions.
+**QueryPDF** is a RAG-powered chatbot that allows users to query PDF documents using OpenAI's GPT models and Google's Gemini models. By leveraging a pipeline that includes document ingestion, data extraction, vector storage, auto-merging retrieval, and reranking, QueryPDF provides relevant and contextual responses based on uploaded PDFs.
 
 Key technologies used in QueryPDF:
 - Streamlit for an intuitive web interface.
